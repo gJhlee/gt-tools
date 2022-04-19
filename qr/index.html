@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>code 2 QRcode</title>
+  <script type="text/javascript" src="/dist/jquery.min.js"></script>
+  <script type="text/javascript" src="/dist/qrcode.min.js"></script>
+  <script type="text/javascript" src="/dist/lz-string.min.js"></script>
+</head>
+
+<body>
+  <div class="container">
+    <h1>TEXT to QRCODE</h1>
+    <div>
+      <div>
+        <label for="len"> 텍스트길이
+          <input type="number" id="len" value="512">
+        </label>
+      </div>
+      <div class="option-box">
+        <label for="use-remove-useless" class="pill">
+          <input type="checkbox" id="use-remove-useless" checked> 불필요한 문자 제거
+        </label>
+        <label for="use-remove-nonascii" class="pill">
+          <input type="checkbox" id="use-remove-nonascii" checked> non-ascii 제거
+        </label>
+        <label for="use-one-line" class="pill">
+          <input type="checkbox" id="use-one-line" checked> 한 줄
+        </label>
+        <label for="use-trim" class="pill">
+          <input type="checkbox" id="use-trim"> 앞뒤공백제거
+        </label>
+        <label for="use-compress" class="pill">
+          <input type="checkbox" id="use-compress"> 압축하기
+        </label>
+      </div>
+       <pre>
+  요구사항: Edge, Chrome 혹은 IE10 이상의 브라우저 (모바일 지원)
+  옵션 설명:
+  * 불필요한 문자 제거: 라인 마지막 공백, 연속된 개행 문자를 제거합니다.
+  * non-ascii 제거: ASCII가 아닌 문자를 제거합니다. (압축하는 경우 제거하지 않아도됨)
+  * 한 줄: 개행을 모두 제거합니다. (구분자가 없는 텍스트나 언어는 사용 지양)
+  * 앞뒤공백제거: 라인 시작과 끝의 공백을 제거합니다.
+  * 압축하기: 압축하고 base64로 인코딩 합니다. 부분 디코딩이 불가능하며, 포함된 디코더로 원복할 수 있습니다.
+             (압축라이브러리: https://pieroxy.net/blog/pages/lz-string/index.html)
+</pre> </div>
+    <div>
+      <h2>텍스트 입력</h2>
+      <textarea id="input" class="text-field" placeholder="텍스트를 입력하세요"></textarea>
+    </div>
+    <div>
+      <h2>생성된 텍스트</h2>
+      <textarea id="output" class="text-field" placeholder="처리된 문자열 입니다." readonly></textarea>
+    </div>
+    <div>
+      <ul class="logs"></ul>
+    </div>
+    <div>
+      <button id="encode">make QR</button>
+      <button id="decode">Decompress</button>
+      <button id="clear">clear</button>
+    </div>
+    <p id="msg"></p>
+    <ul id="qrcode"></ul>
+  </div>
+  <script type="text/javascript">
+  function log(str) {
+    console.log(str)
+    $("<li>").text(str).appendTo($(".logs"))
+  }
+  $("#clear").click(() => {
+    $("#qrcode").empty()
+    $(".logs").empty()
+    $("textarea").val("")
+    log("clear")
+  })
+  $("#decode").click(() => {
+    let text = $("#input").val();
+    let decompressed = LZString.decompressFromBase64(text);
+    if(decompressed == null) {
+      log(`Decompressed Fail`)
+    } else {
+      $("#output").val(decompressed)
+      log(`Decompressed Success`)
+    }
+  })
+  $("#encode").click(() => {
+    let useRemoveUseless = $("#use-remove-useless").is(":checked")
+    let useCompress = $("#use-compress").is(":checked")
+    let useTrim = $("#use-trim").is(":checked")
+    let useRemoveNonascii = $("#use-remove-nonascii").is(":checked")
+    let useOneLine = $("#use-one-line").is(":checked")
+    let len = Number($("#len").val())
+    log(`Option: { compress: ${useCompress}, trim: ${useTrim}, removeUseless: ${useRemoveUseless},
+         useRemoveNonascii: ${useRemoveNonascii}, lengthLimit: ${len} }`)
+    let text = $("#input").val();
+    let originLength = text.length
+      // remove useless chars
+    if(useRemoveUseless) {
+      let reduceText = text.replaceAll(/\s+$/g, '').replaceAll(/[\n\r]{2,}/g, '')
+      log(`Reduce ${text.length} -> ${reduceText.length} (${Math.round(100*(1-reduceText.length/text.length))}%)`)
+      text = reduceText
+    }
+    // remove non-ascii
+    if(useRemoveNonascii) {
+      let nonAsciiText = text.replaceAll(/[^\1-~\n]+/g, '')
+      log(`Non-ascii ${text.length} -> ${nonAsciiText.length} (${Math.round(100*(1-nonAsciiText.length/text.length))}%)`)
+      text = nonAsciiText
+    }
+    // remove white spaces
+    if(useTrim) {
+      text = text.replaceAll(/\s+/g, '\n')
+    }
+    // use one line
+    if(useOneLine) {
+      let oneline = text.replaceAll(/\s+/g, '')
+      log(`OneLine ${text.length} -> ${oneline.length} (${Math.round(100*(1-oneline.length/text.length))}%)`)
+      text = oneline
+    }
+    // compress
+    if(useCompress) {
+      let compressed = LZString.compressToBase64(text);
+      log(`Compressed ${text.length} -> ${compressed.length} (${Math.round(100*(1-compressed.length/text.length))}%)`)
+      text = compressed
+    }
+    log(`Result: ${originLength} -> ${text.length} (${Math.round(100*(1-text.length/originLength))}%)`)
+    $("#output").val(text)
+    for(var i = 0; i <= (text.length / len); i++) {
+      let ps = text.substr(i * len, len)
+      let msg = `QR generate #${i}, len=${ps.length}`
+      let li = $("<li>").appendTo($("#qrcode"))
+      $("<h3>").text(msg).appendTo(li)
+      let qr = $("<div>").addClass("qr-item").appendTo(li)
+      console.log("len:", ps.length)
+      var qrcode = new QRCode(qr.get(0), {
+        text: ps,
+        width: 250,
+        height: 250,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
+      });
+      $("<code>").append($("<pre>").text(ps)).appendTo(qr)
+    }
+    log(`${i} QR generated`)
+  })
+  </script>
+  <style type="text/css">
+  body {
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    display: flex;
+    background: linear-gradient(to bottom, #3988fd 50%, white 50%);
+  }
+  
+  .container {
+    border-radius: 5px;
+    border: 2px solid #ddd;
+    margin: auto;
+    margin-top: 50px;
+    padding: 0px 30px 30px;
+    width: 800px;
+    background: #FFF;
+    height: calc(100% - 150px);
+    overflow: auto;
+  }
+  
+  .container::-webkit-scrollbar {
+    width: 10px;
+  }
+  
+  .container::-webkit-scrollbar-thumb {
+    background-color: #2f3542;
+    border-radius: 10px;
+    background-clip: padding-box;
+    border: 2px solid transparent;
+  }
+  
+  .container::-webkit-scrollbar-track {
+    background-color: grey;
+    border-radius: 10px;
+    box-shadow: inset 0px 0px 5px white;
+  }
+  
+  .container h1 {
+    border-bottom: 1px solid #ddd;
+    margin: 0 0 10px 0;
+    padding: 25px;
+  }
+  
+  ul#qrcode>li {
+    margin: 100px 10px
+  }
+  
+  .container h1 {
+    text-align: center;
+  }
+  
+  .text-field {
+    margin: 5px 30px;
+    width: 90%;
+    word-break: break-all;
+    white-space: break-spaces;
+  }
+  
+  #input {
+    min-height: 200px;
+  }
+  
+  #output {
+    min-height: 30px;
+  }
+  
+  .qr-item {
+    display: flex;
+  }
+  
+  .qr-item pre {
+    margin-left: 20px;
+    word-break: break-all;
+    white-space: break-spaces;
+  }
+  
+  pre {
+    word-break: break-all;
+    white-space: break-spaces;
+  }
+  
+  button {
+    padding: 7px 14px;
+    border-radius: 3px;
+    border: 1px solid #3988fd;
+    background: #ffffff;
+    color: #3988fd;
+    transition: background 0.2s, color 0.2s;
+  }
+  
+  button:hover {
+    border: 1px solid white;
+    background: #3988fd;
+    color: white;
+  }
+
+  .option-box {
+    display: flex;
+    margin: 5px;
+  }
+
+  .pill:not(:last-child) {
+    margin-right: 5px;
+  }
+
+  .pill {
+    border-radius: 10px;
+    border: 1px solid #3988fd;
+    padding: 2px 5px;
+    font-size: 0.8em;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  .pill:hover {
+    background: #3988fd;
+    color: white;
+  }
+
+  .pill>* {
+    float: left;
+    clear: both;
+  }
+  </style>
+</body>
+
+</html>
