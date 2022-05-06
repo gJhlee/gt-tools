@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>JSON API Generator</title>
+  <script type="text/javascript" src="/gt-tools/dist/jquery.min.js"></script>
+  <script type="text/javascript" src="/gt-tools/dist/underscore.min.js"></script>
+  
+  <script type="text/javascript" src="../dist/jquery.min.js"></script>
+  <script type="text/javascript" src="../dist/underscore.min.js"></script>
+</head>
+
+<body>
+  <div class="container">
+    <h1>JSON API Generator</h1>
+    <div>
+
+       <pre>
+  요구사항: Edge, Chrome 혹은 IE10 이상의 브라우저 (모바일 지원)
+  * Root는 반드시 object({}) 이어야 합니다.
+  옵션 설명:
+  * key로서 제공되는 기능
+    * "key[10]" 과 같은 형태로 10개의 Array를 생성
+  * value로서 제공되는 함수들
+     * $INTEGER(start, end) : start~end 까지의 정수를 생성
+     * $FLOAT(start, end) : start~end 까지의 부동소수점을 생성
+     * $KOR_NAME() : 한국 이름 생성
+     * $CHOICE(...params) : params 중 한가지 선택
+</pre> </div>
+    <div>
+      <h2>텍스트 입력</h2>
+      <textarea id="input" class="text-field" placeholder="텍스트를 입력하세요">
+{
+  "lectures[3]": [
+    {
+      "id": "$INTEGER(100, 900)",
+      "name": "강의",
+      "professor": "$CHOICE('홍길동', '김둘리', '마이클')",
+      "max_stdudent": "$INTEGER(20, 100)",
+      "is_pass_fail": "$CHOICE(true, false)"
+    }
+  ],
+  "students[10]": [
+    {
+      "id": "$INTEGER(1000, 9999)",
+      "user": "$KOR_NAME()",
+      "grade": "$CHOICE('A', 'B', 'C', 'D', 'F')",
+      "is_absence": "$CHOICE(true, false)",
+      "rate": "$FLOAT(0,1)",
+      "roles[3]": [
+        "$INTEGER(0,99)"
+      ]
+    }
+  ]
+}
+      </textarea>
+    </div>
+    <button id="run">생성</button>
+    <div>
+      <h2>생성된 텍스트</h2>
+      <textarea id="output" class="text-field" placeholder="처리된 문자열 입니다." readonly></textarea>
+    </div>
+    <div>
+      <ul class="logs"></ul>
+    </div>
+  </div>
+  <script type="text/javascript">
+  const functions = {
+    $KOR_NAME() {
+      const a = "김이박최정남"
+      const b = "가강건규나다도동민사서선성세소수승시아연예우유윤은이재정주준지진채태하한현혜"
+      const c = "규나람랑름리린림민빈서석성수아안양연영온완우원유윤율은인재주준지진찬채하한혁현호환후훈희"
+      return _.sample(a) + _.sample(b) + _.sample(c)
+    },
+    $FLOAT(a, b) {
+      return Math.random() * Math.abs(a - b) + Math.min(a, b)
+    },
+    $INTEGER(a, b) {
+      return Math.round(Math.random() * Math.abs(a - b) + Math.min(a, b))
+    },
+    $CHOICE(...list) {
+      return _.sample(list)
+    }
+  }
+  function run(json, isRoot) {
+    if (_.isString(json) && !_.isObject(json)) {
+    console.log(_.isString(json), _.isObject(json))
+      if(json.startsWith("$")) {
+        return eval(`functions.${json}`)
+      } else {
+        return json
+      }
+    }
+    _.each(json, (v, k) => {
+      if (_.isArray(v)) {
+        let len = 0;
+        let m = k.match(/(.+)\[(\d+)\]/);
+        if (m) {
+          let newKey = m[1]
+          len = Number(m[2])
+          if (newKey) {
+            delete json[k]
+            k = newKey
+            json[k] = v
+          }
+        }
+        v = _.map(_.range(len || 10), () => _.clone(v[0]))
+
+        json[k] = _.map(v, run)
+      } else if (_.isString(v) && v.startsWith("$")) {
+        json[k] = eval(`functions.${v}`)
+      }
+    })
+    return json
+  }
+  function log(str) {
+    console.log(str)
+    $("<li>").text(str).appendTo($(".logs"))
+  }
+  $("#clear").click(() => {
+    $("#qrcode").empty()
+    $(".logs").empty()
+    $("textarea").val("")
+    log("clear")
+  })
+  $("#run").click(() => {
+    let text = $("#input").val();
+    let json= run(JSON.parse(text))
+    $("#output").text(JSON.stringify(json, null, 4))
+    let height = JSON.stringify(json, null, 4).split("\n").length
+    $("#output").css("height", (height*15)+"px")
+
+  })
+
+  </script>
+  <style type="text/css">
+  body {
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    display: flex;
+    background: linear-gradient(to bottom, #3988fd 50%, white 50%);
+  }
+  
+  .container {
+    border-radius: 5px;
+    border: 2px solid #ddd;
+    margin: auto;
+    margin-top: 50px;
+    padding: 0px 30px 30px;
+    width: 800px;
+    background: #FFF;
+    height: calc(100% - 150px);
+    overflow: auto;
+  }
+  
+  .container::-webkit-scrollbar {
+    width: 10px;
+  }
+  
+  .container::-webkit-scrollbar-thumb {
+    background-color: #2f3542;
+    border-radius: 10px;
+    background-clip: padding-box;
+    border: 2px solid transparent;
+  }
+  
+  .container::-webkit-scrollbar-track {
+    background-color: grey;
+    border-radius: 10px;
+    box-shadow: inset 0px 0px 5px white;
+  }
+  
+  .container h1 {
+    border-bottom: 1px solid #ddd;
+    margin: 0 0 10px 0;
+    padding: 25px;
+  }
+  
+  ul#qrcode>li {
+    margin: 100px 10px
+  }
+  
+  .container h1 {
+    text-align: center;
+  }
+  
+  .text-field {
+    margin: 5px 30px;
+    width: 90%;
+    word-break: break-all;
+    white-space: break-spaces;
+  }
+  
+  #input {
+    min-height: 200px;
+  }
+  
+  #output {
+    min-height: 30px;
+  }
+  
+  .qr-item {
+    display: flex;
+  }
+  
+  .qr-item pre {
+    margin-left: 20px;
+    word-break: break-all;
+    white-space: break-spaces;
+  }
+  
+  pre {
+    word-break: break-all;
+    white-space: break-spaces;
+  }
+
+  textarea {
+    resize: vertical;
+    height: 100px;
+  }
+  
+  button {
+    padding: 7px 14px;
+    border-radius: 3px;
+    border: 1px solid #3988fd;
+    background: #ffffff;
+    color: #3988fd;
+    transition: background 0.2s, color 0.2s;
+  }
+  
+  button:hover {
+    border: 1px solid white;
+    background: #3988fd;
+    color: white;
+  }
+
+  .option-box {
+    display: flex;
+    margin: 5px;
+  }
+
+  .pill:not(:last-child) {
+    margin-right: 5px;
+  }
+
+  .pill {
+    border-radius: 10px;
+    border: 1px solid #3988fd;
+    padding: 2px 5px;
+    font-size: 0.8em;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  .pill:hover {
+    background: #3988fd;
+    color: white;
+  }
+
+  .pill>* {
+    float: left;
+    clear: both;
+  }
+  </style>
+</body>
+
+</html>
